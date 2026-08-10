@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>¿Cuál grúa falla primero? — Mantenimiento predictivo a equipo mayor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#050D16;
+    --panel:#0A1826;
+    --panel-2:#0D2032;
+    --hair:#153042;
+    --hair-soft:#0F2536;
+    --cy:#22D3EE;
+    --cy-dim:#1B93A8;
+    --am:#F5A524;
+    --ink:#EAF6FA;
+    --dim:#7FA0B4;
+    --faint:#456579;
+    --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --disp:"Space Grotesk",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(1200px 600px at 20% -10%, #0B2233 0%, transparent 60%),
+      var(--bg);
+    color:var(--ink);
+    font-family:var(--disp);
+    -webkit-font-smoothing:antialiased;
+    padding:40px 24px 72px;
+    min-height:100vh;
+  }
+  .wrap{max-width:1120px;margin:0 auto}
+
+  /* ---------- header ---------- */
+  header{margin-bottom:34px}
+  .eyebrow{
+    display:flex;align-items:center;gap:12px;
+    font-family:var(--mono);font-size:11px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--faint);margin:0 0 16px
+  }
+  .eyebrow::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--hair),transparent)}
+  .pulse{width:7px;height:7px;border-radius:50%;background:var(--cy);animation:blip 2s infinite}
+  @keyframes blip{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(34,211,238,.5)}50%{opacity:.5;box-shadow:0 0 0 7px rgba(34,211,238,0)}}
+  h1{
+    font-size:clamp(30px,5.2vw,54px);font-weight:700;letter-spacing:-.03em;
+    margin:0 0 14px;line-height:1.02
+  }
+  h1 em{font-style:normal;color:var(--cy)}
+  .sub{color:var(--dim);font-size:16px;margin:0;max-width:60ch;line-height:1.65}
+
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-top:26px}
+  button{
+    font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--dim);background:rgba(255,255,255,.02);border:1px solid var(--hair);
+    border-radius:2px;padding:11px 18px;cursor:pointer;
+    transition:color .18s,border-color .18s,background .18s,transform .1s;
+  }
+  button:hover{color:var(--ink);border-color:var(--cy-dim);background:rgba(34,211,238,.07)}
+  button:active{transform:translateY(1px)}
+  button:focus-visible{outline:2px solid var(--cy);outline-offset:3px}
+  button.primary{color:var(--cy);border-color:var(--cy-dim)}
+  button.primary:hover{background:rgba(34,211,238,.12)}
+
+  /* ---------- panels ---------- */
+  .panel{
+    position:relative;background:var(--panel);
+    border:1px solid var(--hair);border-radius:4px;
+    margin-top:22px;overflow:hidden;
+    opacity:0;transform:translateY(14px);
+    animation:rise .55s cubic-bezier(.2,.7,.3,1) forwards;
+  }
+  .panel:nth-of-type(1){animation-delay:.05s}
+  .panel:nth-of-type(2){animation-delay:.15s}
+  .panel:nth-of-type(3){animation-delay:.25s}
+  @keyframes rise{to{opacity:1;transform:none}}
+
+  .bar{position:absolute;top:0;left:0;height:2px;width:0;background:var(--cy);box-shadow:0 0 12px rgba(34,211,238,.7)}
+
+  .phead{
+    display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+    padding:18px 24px 12px;
+  }
+  .pid{display:flex;align-items:baseline;gap:14px}
+  .pletter{
+    font-size:13px;font-family:var(--mono);letter-spacing:.2em;color:var(--faint);
+    text-transform:uppercase
+  }
+  .pname{font-size:24px;font-weight:700;letter-spacing:-.02em;margin:0}
+  .readout{
+    font-family:var(--mono);font-size:15px;color:var(--cy);
+    letter-spacing:.02em;font-variant-numeric:tabular-nums;white-space:nowrap
+  }
+  .readout .d{color:var(--faint)}
+
+  canvas{display:block;width:100%;height:300px}
+  @media (max-width:640px){canvas{height:230px}}
+
+  .verdict{
+    max-height:0;opacity:0;overflow:hidden;
+    border-top:1px solid transparent;
+    transition:max-height .6s cubic-bezier(.2,.7,.3,1),opacity .4s .12s,border-color .4s;
+  }
+  .verdict.show{max-height:340px;opacity:1;border-top-color:var(--hair)}
+  .vin{padding:18px 24px 22px;display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap}
+  .vtag{
+    font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;
+    padding:7px 12px;border-radius:2px;white-space:nowrap;flex:0 0 auto
+  }
+  .v-ok{background:rgba(127,160,180,.13);color:#9DBDCE;border:1px solid rgba(127,160,180,.22)}
+  .v-fail{background:rgba(245,165,36,.14);color:var(--am);border:1px solid rgba(245,165,36,.35)}
+  .vtx{flex:1;min-width:260px}
+  .vtitle{font-size:19px;font-weight:500;margin:0 0 8px;letter-spacing:-.01em}
+  .vbody{color:var(--dim);font-size:14.5px;line-height:1.7;margin:0;max-width:68ch}
+  .vmetrics{display:flex;gap:26px;flex-wrap:wrap;margin-top:14px}
+  .met{font-family:var(--mono)}
+  .met b{display:block;font-size:19px;font-weight:500;color:var(--ink);letter-spacing:-.01em}
+  .met span{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+
+  /* ---------- comparador ---------- */
+  #cmp{margin-top:22px;display:none}
+  #cmp.show{display:block}
+  .cmphead{padding:18px 24px 6px}
+  .cmphead p{margin:6px 0 0;color:var(--dim);font-size:14.5px;line-height:1.65;max-width:70ch}
+  .legend{display:flex;gap:20px;flex-wrap:wrap;padding:0 24px 18px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+  .legend i{display:inline-block;width:16px;height:2px;margin-right:8px;vertical-align:middle}
+
+  footer{
+    margin-top:44px;border-top:1px solid var(--hair);padding-top:22px;
+    color:var(--faint);font-size:13.5px;line-height:1.75;max-width:76ch
+  }
+  footer strong{color:var(--ink);font-weight:500}
+  kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--hair);border-radius:2px;padding:2px 7px;color:var(--dim)}
+
+  @media (prefers-reduced-motion: reduce){
+    .panel{animation:none;opacity:1;transform:none}
+    .pulse{animation:none}
+    .verdict{transition:none}
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  
+  <header>
+    <p class="eyebrow"><span class="pulse"></span>Mantenimiento predictivo a equipo mayor · IoT + IA</p>
+    <h1>¿Cuál equipo <em>falla primero</em>?</h1>
+    <p class="sub">Noventa días de vibración medida en el rodamiento principal de tres equipos de la terminal. Uno de los tres va a fallar. Elija cuál antes de revelar el veredicto.</p>
+    <div class="toolbar">
+      <button type="button" id="playAll" class="primary">▶ Reproducir las tres</button>
+      <button type="button" id="revealAll">Revelar veredicto</button>
+      <button type="button" id="hideAll">Reiniciar dinámica</button>
+    </div>
+  </header>
+
+  <div id="charts"></div>
+
+  <section class="panel" id="cmp">
+    <div class="cmphead">
+      <p class="pletter">Comparación</p>
+      <p>Las tres curvas superpuestas. El umbral fijo detecta al equipo A y roza al C. Al equipo B, el único que realmente se está degradando, no lo ve nunca.</p>
+    </div>
+    <canvas id="cmpCanvas"></canvas>
+    <div class="legend">
+      <span><i style="background:#3E6A80"></i>Equipo A</span>
+      <span><i style="background:#F5A524"></i>Equipo B</span>
+      <span><i style="background:#3E6A80"></i>Equipo C</span>
+      <span><i style="background:#F5A524;height:0;border-top:2px dashed #F5A524"></i>Proyección de falla</span>
+    </div>
+  </section>
+
+  <footer>
+    <p><strong>Un umbral mira el valor de hoy. El modelo mira la pendiente de los últimos treinta días.</strong> Esa es la frase que queremos que se lleven del stand.</p>
+    <p>Controles: <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> reproducen cada equipo · <kbd>Espacio</kbd> las tres · <kbd>R</kbd> revela · <kbd>H</kbd> reinicia.</p>
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  var DUR=3600, DAYS=90, VMIN=1, VMAX=5.6, THRESH=4.5;
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function nz(d){return Math.sin(d*1.7)*0.6+Math.sin(d*0.53)*0.4;}
+
+  var SPECS=[
+    { key:'A', name:'Equipo A', tag:'RTG 02',
+      fn:function(d){return 2.6+nz(d)*0.14+2.1*Math.exp(-Math.pow((d-40)/5,2));},
+      vtag:'Falsa alarma', vcls:'v-ok',
+      vtitle:'Evento puntual, sin tendencia',
+      vbody:'Cruzó el umbral una sola vez, en el día 40, y volvió a su línea base al día siguiente. Fue una maniobra con carga desbalanceada, no un daño. Es la curva que más gente elige, y la única que un sistema de umbrales habría reportado como alarma.',
+      mets:[['1','veces sobre el umbral'],['0.00','pendiente mm/s por mes'],['—','falla proyectada']] },
+    { key:'B', name:'Equipo B', tag:'RTG 04',
+      fn:function(d){return 2.4+nz(d)*0.12+0.00055*Math.pow(Math.max(0,d-30),2);},
+      vtag:'Falla real', vcls:'v-fail',
+      vtitle:'Tendencia sostenida desde el día 30',
+      vbody:'Nunca cruzó el umbral. Ningún operador la habría reportado. La pendiente fue estadísticamente significativa desde el día 62 y la proyección sitúa la falla en el día 104: catorce días de anticipación para programar el mantenimiento sin detener el patio.',
+      mets:[['0','veces sobre el umbral'],['+0.61','pendiente mm/s por mes'],['día 104','falla proyectada']] },
+    { key:'C', name:'Equipo C', tag:'Grúa frontal 01',
+      fn:function(d){return 4.05+nz(d)*0.30;},
+      vtag:'Normal alto', vcls:'v-ok',
+      vtitle:'Nivel elevado pero estable',
+      vbody:'Es la que peor se ve y la que menos preocupa. Ese nivel ha sido su línea base desde el día uno, por diseño del equipo y por su posición en el patio. Sin pendiente no hay degradación: lo que hay que corregir es el umbral de este equipo, no el equipo.',
+      mets:[['0','veces sobre el umbral'],['−0.02','pendiente mm/s por mes'],['—','falla proyectada']] }
+  ];
+
+  function fit(fn,a,b){
+    var n=0,sx=0,sy=0,sxy=0,sxx=0;
+    for(var d=a;d<=b;d++){var y=fn(d);n++;sx+=d;sy+=y;sxy+=d*y;sxx+=d*d;}
+    var m=(n*sxy-sx*sy)/(n*sxx-sx*sx);
+    return {m:m,b:(sy-m*sx)/n};
+  }
+
+  function Chart(cv,spec){
+    this.cv=cv;this.ctx=cv.getContext('2d');this.spec=spec;
+    this.p=0;this.rev=0;this.raf=null;
+    this.trend=fit(spec.fn,55,90);
+    this.resize();
+  }
+  Chart.prototype.resize=function(){
+    var r=this.cv.getBoundingClientRect();
+    var dpr=window.devicePixelRatio||1;
+    this.w=r.width;this.h=r.height;
+    this.cv.width=Math.round(r.width*dpr);this.cv.height=Math.round(r.height*dpr);
+    this.ctx.setTransform(dpr,0,0,dpr,0,0);
+    this.L=this.w<560?46:70;this.R=22;this.T=26;this.B=this.w<560?34:42;
+    this.jit=[];
+    var n=Math.max(160,Math.round(this.w));
+    for(var i=0;i<=n;i++){
+      var d=i/n*DAYS;
+      var j=Math.sin(i*0.9)*0.5+Math.sin(i*2.3)*0.3+Math.sin(i*0.31)*0.2;
+      this.jit.push([d,this.spec.fn(d)+j*0.16]);
+    }
+    this.draw();
+  };
+  Chart.prototype.sx=function(d){return this.L+(d/DAYS)*(this.w-this.L-this.R);};
+  Chart.prototype.sy=function(v){return (this.h-this.B)-((v-VMIN)/(VMAX-VMIN))*(this.h-this.B-this.T);};
+
+  Chart.prototype.draw=function(){
+    var c=this.ctx,w=this.w,h=this.h,S=this,p=this.p,rev=this.rev;
+    c.clearRect(0,0,w,h);
+
+    // grid
+    c.strokeStyle='#0F2536';c.lineWidth=1;
+    c.font='11px "JetBrains Mono", monospace';c.fillStyle='#456579';
+    [2,3,4,5].forEach(function(v){
+      var y=Math.round(S.sy(v))+0.5;
+      c.beginPath();c.moveTo(S.L,y);c.lineTo(w-S.R,y);c.stroke();
+      c.textAlign='right';c.textBaseline='middle';
+      c.fillText(v.toFixed(1),S.L-12,y);
+    });
+    // x ticks
+    c.textAlign='center';c.textBaseline='top';
+    [0,30,60,90].forEach(function(d){
+      c.fillText('día '+d,S.sx(d),h-S.B+12);
+    });
+
+    // axes
+    c.strokeStyle='#1B3A4E';
+    c.beginPath();c.moveTo(S.L,S.T);c.lineTo(S.L,h-S.B);c.lineTo(w-S.R,h-S.B);c.stroke();
+
+    // threshold
+    var ty=Math.round(this.sy(THRESH))+0.5;
+    c.save();c.setLineDash([7,6]);c.strokeStyle='rgba(245,165,36,.75)';c.lineWidth=1;
+    c.beginPath();c.moveTo(S.L,ty);c.lineTo(w-S.R,ty);c.stroke();c.restore();
+    c.fillStyle='#F5A524';c.textAlign='right';c.textBaseline='bottom';
+    c.font='10px "JetBrains Mono", monospace';
+    c.fillText('UMBRAL DE ALARMA 4.5 mm/s',w-S.R,ty-7);
+
+    var xEnd=this.sx(DAYS*p);
+
+    c.save();
+    c.beginPath();c.rect(S.L,0,Math.max(0,xEnd-S.L),h);c.clip();
+
+    // area
+    var g=c.createLinearGradient(0,S.T,0,h-S.B);
+    g.addColorStop(0,'rgba(34,211,238,.20)');
+    g.addColorStop(1,'rgba(34,211,238,0)');
+    c.beginPath();c.moveTo(S.L,h-S.B);
+    for(var i=0;i<=DAYS;i++){c.lineTo(S.sx(i),S.sy(S.spec.fn(i)));}
+    c.lineTo(S.sx(DAYS),h-S.B);c.closePath();c.fillStyle=g;c.fill();
+
+    // raw jitter
+    c.beginPath();
+    this.jit.forEach(function(pt,i){
+      var x=S.sx(pt[0]),y=S.sy(pt[1]);
+      i?c.lineTo(x,y):c.moveTo(x,y);
+    });
+    c.strokeStyle='rgba(34,211,238,.28)';c.lineWidth=1;c.stroke();
+
+    // rms line
+    c.beginPath();
+    for(var k=0;k<=DAYS;k+=0.5){
+      var x=S.sx(k),y=S.sy(S.spec.fn(k));
+      k?c.lineTo(x,y):c.moveTo(x,y);
+    }
+    c.strokeStyle='#22D3EE';c.lineWidth=2.6;c.lineJoin='round';c.lineCap='round';
+    c.shadowColor='rgba(34,211,238,.55)';c.shadowBlur=14;
+    c.stroke();c.shadowBlur=0;
+    c.restore();
+
+    // trend line (reveal)
+    if(rev>0){
+      var m=this.trend.m,b=this.trend.b;
+      var d0=55,d1=90+(m>0.005?14:0);
+      var dEnd=d0+(d1-d0)*rev;
+      c.save();
+      c.beginPath();
+      c.moveTo(this.sx(d0),this.sy(m*d0+b));
+      c.lineTo(this.sx(Math.min(dEnd,90)),this.sy(m*Math.min(dEnd,90)+b));
+      c.strokeStyle='rgba(245,165,36,.95)';c.lineWidth=2;
+      c.shadowColor='rgba(245,165,36,.5)';c.shadowBlur=10;c.stroke();c.shadowBlur=0;
+      if(dEnd>90){
+        c.setLineDash([6,5]);
+        c.beginPath();
+        c.moveTo(this.sx(90),this.sy(m*90+b));
+        c.lineTo(this.sx(dEnd),this.sy(m*dEnd+b));
+        c.stroke();c.setLineDash([]);
+        if(rev>0.98){
+          var fx=this.sx(104),fy=this.sy(m*104+b);
+          c.beginPath();c.arc(fx,fy,4.5,0,7);c.fillStyle='#F5A524';c.fill();
+          c.beginPath();c.arc(fx,fy,10,0,7);c.strokeStyle='rgba(245,165,36,.45)';c.lineWidth=1;c.stroke();
+        }
+      }
+      c.restore();
+    }
+
+    // playhead
+    if(p>0&&p<1){
+      c.save();
+      c.setLineDash([3,4]);c.strokeStyle='rgba(234,246,250,.35)';c.lineWidth=1;
+      c.beginPath();c.moveTo(xEnd,S.T);c.lineTo(xEnd,h-S.B);c.stroke();
+      c.restore();
+      var vy=this.sy(this.spec.fn(DAYS*p));
+      c.beginPath();c.arc(xEnd,vy,4.5,0,7);c.fillStyle='#EAF6FA';c.fill();
+      c.beginPath();c.arc(xEnd,vy,11,0,7);c.strokeStyle='rgba(34,211,238,.5)';c.lineWidth=1;c.stroke();
+    }
+  };
+
+  Chart.prototype.play=function(){
+    var S=this;
+    if(this.raf)cancelAnimationFrame(this.raf);
+    if(reduce){this.p=1;this.draw();this.onProgress&&this.onProgress(1);return;}
+    var t0=performance.now();
+    (function step(now){
+      var t=Math.min(1,(now-t0)/DUR);
+      S.p=t;S.draw();
+      S.onProgress&&S.onProgress(t);
+      if(t<1)S.raf=requestAnimationFrame(step);else S.raf=null;
+    })(t0);
+  };
+  Chart.prototype.showTrend=function(on){
+    var S=this;
+    if(this.traf)cancelAnimationFrame(this.traf);
+    if(!on){this.rev=0;this.draw();return;}
+    if(reduce){this.rev=1;this.draw();return;}
+    var t0=performance.now();
+    (function step(now){
+      var t=Math.min(1,(now-t0)/900);
+      S.rev=t;S.draw();
+      if(t<1)S.traf=requestAnimationFrame(step);else S.traf=null;
+    })(t0);
+  };
+  Chart.prototype.reset=function(){
+    if(this.raf)cancelAnimationFrame(this.raf);
+    this.p=0;this.rev=0;this.draw();
+  };
+
+  // ---- build panels ----
+  var host=document.getElementById('charts');
+  var charts=[];
+
+  SPECS.forEach(function(spec){
+    var sec=document.createElement('section');
+    sec.className='panel';
+    sec.innerHTML=
+      '<div class="bar" data-bar></div>'+
+      '<div class="phead">'+
+        '<div class="pid"><span class="pletter">'+spec.tag+'</span><h2 class="pname">'+spec.name+'</h2></div>'+
+        '<span class="readout" data-ro><span class="d">día</span> 00 <span class="d">·</span> 0.00 <span class="d">mm/s</span></span>'+
+      '</div>'+
+      '<canvas></canvas>'+
+      '<div class="verdict" data-vd>'+
+        '<div class="vin">'+
+          '<span class="vtag '+spec.vcls+'">'+spec.vtag+'</span>'+
+          '<div class="vtx">'+
+            '<p class="vtitle">'+spec.vtitle+'</p>'+
+            '<p class="vbody">'+spec.vbody+'</p>'+
+            '<div class="vmetrics">'+spec.mets.map(function(m){
+              return '<div class="met"><b>'+m[0]+'</b><span>'+m[1]+'</span></div>';
+            }).join('')+'</div>'+
+          '</div>'+
+        '</div>'+
+      '</div>';
+    host.appendChild(sec);
+
+    var ch=new Chart(sec.querySelector('canvas'),spec);
+    var ro=sec.querySelector('[data-ro]');
+    var bar=sec.querySelector('[data-bar]');
+    var vd=sec.querySelector('[data-vd]');
+
+    ch.onProgress=function(t){
+      var day=t*DAYS;
+      ro.innerHTML='<span class="d">día</span> '+String(Math.round(day)).padStart(2,'0')+
+        ' <span class="d">·</span> '+spec.fn(day).toFixed(2)+' <span class="d">mm/s</span>';
+      bar.style.width=(t*100)+'%';
+      if(t>=1)setTimeout(function(){bar.style.width='0%';},450);
+    };
+
+    charts.push({
+      play:function(){ch.play();},
+      reveal:function(){vd.classList.add('show');ch.showTrend(true);},
+      reset:function(){vd.classList.remove('show');ch.reset();ch.showTrend(false);bar.style.width='0%';
+        ro.innerHTML='<span class="d">día</span> 00 <span class="d">·</span> 0.00 <span class="d">mm/s</span>';},
+      resize:function(){ch.resize();}
+    });
+  });
+
+  // ---- comparador ----
+  var cmpSec=document.getElementById('cmp');
+  var cmpCv=document.getElementById('cmpCanvas');
+  var cmpCtx=cmpCv.getContext('2d');
+  function drawCmp(){
+    var r=cmpCv.getBoundingClientRect();
+    var dpr=window.devicePixelRatio||1;
+    cmpCv.width=Math.round(r.width*dpr);cmpCv.height=Math.round(r.height*dpr);
+    cmpCtx.setTransform(dpr,0,0,dpr,0,0);
+    var w=r.width,h=r.height,L=w<560?46:70,R=22,T=26,B=w<560?34:42;
+    function sx(d){return L+(d/118)*(w-L-R);}
+    function sy(v){return (h-B)-((v-VMIN)/(VMAX-VMIN))*(h-B-T);}
+    var c=cmpCtx;c.clearRect(0,0,w,h);
+    c.strokeStyle='#0F2536';c.lineWidth=1;
+    c.font='11px "JetBrains Mono", monospace';c.fillStyle='#456579';
+    [2,3,4,5].forEach(function(v){
+      var y=Math.round(sy(v))+0.5;
+      c.beginPath();c.moveTo(L,y);c.lineTo(w-R,y);c.stroke();
+      c.textAlign='right';c.textBaseline='middle';c.fillText(v.toFixed(1),L-12,y);
+    });
+    c.textAlign='center';c.textBaseline='top';
+    [0,30,60,90].forEach(function(d){c.fillText('día '+d,sx(d),h-B+12);});
+    c.fillStyle='#F5A524';c.fillText('día 104',sx(104),h-B+12);
+    c.strokeStyle='#1B3A4E';
+    c.beginPath();c.moveTo(L,T);c.lineTo(L,h-B);c.lineTo(w-R,h-B);c.stroke();
+    // hoy
+    c.save();c.setLineDash([3,5]);c.strokeStyle='rgba(234,246,250,.22)';
+    c.beginPath();c.moveTo(sx(90),T);c.lineTo(sx(90),h-B);c.stroke();c.restore();
+    var ty=Math.round(sy(THRESH))+0.5;
+    c.save();c.setLineDash([7,6]);c.strokeStyle='rgba(245,165,36,.7)';
+    c.beginPath();c.moveTo(L,ty);c.lineTo(w-R,ty);c.stroke();c.restore();
+    SPECS.forEach(function(sp){
+      var isB=sp.key==='B';
+      c.beginPath();
+      for(var k=0;k<=DAYS;k+=0.5){var x=sx(k),y=sy(sp.fn(k));k?c.lineTo(x,y):c.moveTo(x,y);}
+      c.strokeStyle=isB?'#F5A524':'rgba(62,106,128,.85)';
+      c.lineWidth=isB?2.8:1.8;
+      if(isB){c.shadowColor='rgba(245,165,36,.5)';c.shadowBlur=12;}
+      c.stroke();c.shadowBlur=0;
+      if(isB){
+        var t=fit(sp.fn,55,90);
+        c.save();c.setLineDash([6,5]);
+        c.beginPath();c.moveTo(sx(90),sy(t.m*90+t.b));c.lineTo(sx(104),sy(t.m*104+t.b));
+        c.strokeStyle='rgba(245,165,36,.9)';c.lineWidth=2;c.stroke();c.restore();
+        var fx=sx(104),fy=sy(t.m*104+t.b);
+        c.beginPath();c.arc(fx,fy,5,0,7);c.fillStyle='#F5A524';c.fill();
+      }
+      var lx=sx(90)+8,ly=sy(sp.fn(90));
+      c.fillStyle=isB?'#F5A524':'#456579';
+      c.textAlign='left';c.textBaseline='middle';
+      c.font='11px "JetBrains Mono", monospace';
+      c.fillText(sp.key,Math.min(lx,w-R-14),ly);
+    });
+  }
+
+  function all(fn){charts.forEach(function(c){c[fn]();});}
+  document.getElementById('playAll').onclick=function(){all('play');};
+  document.getElementById('revealAll').onclick=function(){
+    all('reveal');cmpSec.classList.add('show');drawCmp();
+  };
+  document.getElementById('hideAll').onclick=function(){
+    all('reset');cmpSec.classList.remove('show');
+  };
+  document.addEventListener('keydown',function(e){
+    var k=e.key.toLowerCase();
+    if(k==='1'&&charts[0])charts[0].play();
+    else if(k==='2'&&charts[1])charts[1].play();
+    else if(k==='3'&&charts[2])charts[2].play();
+    else if(k==='r'){all('reveal');cmpSec.classList.add('show');drawCmp();}
+    else if(k==='h'){all('reset');cmpSec.classList.remove('show');}
+    else if(e.code==='Space'){e.preventDefault();all('play');}
+  });
+
+  var rt;
+  window.addEventListener('resize',function(){
+    clearTimeout(rt);
+    rt=setTimeout(function(){
+      charts.forEach(function(c){c.resize();});
+      if(cmpSec.classList.contains('show'))drawCmp();
+    },140);
+  });
+
+  setTimeout(function(){all('play');},600);
+})();
+</script>
+
+</body>
+</html>
