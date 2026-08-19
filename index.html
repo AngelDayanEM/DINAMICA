@@ -67,6 +67,37 @@
   button.primary{color:var(--cy);border-color:var(--cy-dim)}
   button.primary:hover{background:rgba(34,211,238,.12)}
 
+    /* ---------- botón de navegación ---------- */
+  .page-button{
+    display:inline-block;
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--dim);
+    background:rgba(218, 113, 8, 0.778);
+    border:1px solid var(--hair);
+    border-radius:2px;
+    padding:11px 18px;
+    cursor:pointer;
+    text-decoration:none;
+    transition:color .18s,border-color .18s,background .18s,transform .1s;
+  }
+
+  .page-button:hover{
+    color:var(--ink);
+    border-color:var(--cy-dim);
+    background:rgba(34,211,238,.07);
+  }
+
+  .page-button:active{
+    transform:translateY(1px);
+  }
+
+  .page-button:focus-visible{
+    outline:2px solid var(--cy);
+    outline-offset:3px;
+  }
   /* ---------- panels ---------- */
   .panel{
     position:relative;background:var(--panel);
@@ -75,6 +106,8 @@
     opacity:0;transform:translateY(14px);
     animation:rise .55s cubic-bezier(.2,.7,.3,1) forwards;
   }
+
+  
   .panel:nth-of-type(1){animation-delay:.05s}
   .panel:nth-of-type(2){animation-delay:.15s}
   .panel:nth-of-type(3){animation-delay:.25s}
@@ -156,6 +189,7 @@
       <button type="button" id="playAll" class="primary">▶ Reproducir las tres</button>
       <button type="button" id="revealAll">Revelar veredicto</button>
       <button type="button" id="hideAll">Reiniciar dinámica</button>
+      <a href="DINAMICA2/Pagina2.html" class="page-button"> Ir a dinámica 2</a>
     </div>
   </header>
 

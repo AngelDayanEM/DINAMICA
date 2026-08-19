@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>El costo de esperar — Mantenimiento predictivo a equipo mayor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#050D16; --panel:#0A1826; --hair:#153042; --hair-soft:#0F2536;
+    --cy:#22D3EE; --cy-dim:#1B93A8; --am:#F5A524; --rd:#EF5B5B; --gr:#4ADE80;
+    --ink:#EAF6FA; --dim:#7FA0B4; --faint:#456579;
+    --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --disp:"Space Grotesk",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:radial-gradient(1200px 600px at 20% -10%, #0B2233 0%, transparent 60%), var(--bg);
+    color:var(--ink); font-family:var(--disp); -webkit-font-smoothing:antialiased;
+    padding:40px 24px 72px; min-height:100vh;
+  }
+  .wrap{max-width:1120px;margin:0 auto}
+
+  header{margin-bottom:30px}
+  .eyebrow{display:flex;align-items:center;gap:12px;font-family:var(--mono);font-size:11px;
+    letter-spacing:.22em;text-transform:uppercase;color:var(--faint);margin:0 0 16px}
+  .eyebrow::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--hair),transparent)}
+  .pulse{width:7px;height:7px;border-radius:50%;background:var(--am);animation:blip 2s infinite}
+  @keyframes blip{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(245,165,36,.5)}50%{opacity:.5;box-shadow:0 0 0 7px rgba(245,165,36,0)}}
+  h1{font-size:clamp(30px,5.2vw,54px);font-weight:700;letter-spacing:-.03em;margin:0 0 14px;line-height:1.02}
+  h1 em{font-style:normal;color:var(--am)}
+  .sub{color:var(--dim);font-size:16px;margin:0;max-width:64ch;line-height:1.65}
+
+  .panel{position:relative;background:var(--panel);border:1px solid var(--hair);
+    border-radius:4px;margin-top:22px;overflow:hidden}
+  .phead{padding:18px 24px 4px}
+  .plabel{font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--faint);margin:0 0 6px}
+  .ptitle{font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0}
+  canvas{display:block;width:100%;height:320px}
+  @media(max-width:640px){canvas{height:250px}}
+
+  /* opciones */
+  .opts{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:6px 24px 24px}
+  @media(max-width:760px){.opts{grid-template-columns:1fr}}
+  .opt{
+    text-align:left;background:rgba(255,255,255,.02);border:1px solid var(--hair);
+    border-radius:3px;padding:16px 18px;cursor:pointer;color:var(--ink);
+    font-family:var(--disp);transition:border-color .18s,background .18s,transform .12s;
+  }
+  .opt:hover{border-color:var(--cy-dim);background:rgba(34,211,238,.07)}
+  .opt:active{transform:translateY(1px)}
+  .opt:focus-visible{outline:2px solid var(--cy);outline-offset:3px}
+  .opt.sel{border-color:var(--am);background:rgba(245,165,36,.1)}
+  .opt .day{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);display:block;margin-bottom:7px}
+  .opt .name{font-size:17px;font-weight:500;display:block;margin-bottom:5px;letter-spacing:-.01em}
+  .opt .hint{font-size:13px;color:var(--dim);line-height:1.55}
+
+  /* escenario */
+  .scn{max-height:0;opacity:0;overflow:hidden;border-top:1px solid transparent;
+    transition:max-height .65s cubic-bezier(.2,.7,.3,1),opacity .4s .12s,border-color .4s}
+  .scn.show{max-height:900px;opacity:1;border-top-color:var(--hair)}
+  .scnin{padding:22px 24px 26px}
+  .vtag{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;
+    padding:7px 12px;border-radius:2px;display:inline-block;margin-bottom:14px}
+  .t-early{background:rgba(127,160,180,.13);color:#9DBDCE;border:1px solid rgba(127,160,180,.25)}
+  .t-opt{background:rgba(74,222,128,.13);color:var(--gr);border:1px solid rgba(74,222,128,.32)}
+  .t-late{background:rgba(239,91,91,.13);color:var(--rd);border:1px solid rgba(239,91,91,.35)}
+  .scnh{font-size:20px;font-weight:500;margin:0 0 8px;letter-spacing:-.01em}
+  .scnb{color:var(--dim);font-size:14.5px;line-height:1.7;margin:0 0 20px;max-width:72ch}
+
+  .mets{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--hair);
+    border:1px solid var(--hair);border-radius:3px;overflow:hidden}
+  @media(max-width:760px){.mets{grid-template-columns:repeat(2,1fr)}}
+  .met{background:var(--panel);padding:15px 16px}
+  .met b{display:block;font-family:var(--mono);font-size:21px;font-weight:500;letter-spacing:-.02em;margin-bottom:5px}
+  .met span{font-family:var(--mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);line-height:1.5;display:block}
+  .n-good{color:var(--gr)} .n-warn{color:var(--am)} .n-bad{color:var(--rd)} .n-neutral{color:var(--ink)}
+
+  /* barra comparativa */
+  .cmp{margin-top:22px;padding-top:20px;border-top:1px solid var(--hair-soft)}
+  .cmp h4{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin:0 0 16px;font-weight:400}
+  .brow{display:flex;align-items:center;gap:14px;margin-bottom:11px}
+  .blab{font-family:var(--mono);font-size:12px;color:var(--dim);width:74px;flex:0 0 auto}
+  .btrack{flex:1;height:22px;background:rgba(255,255,255,.03);border-radius:2px;overflow:hidden}
+  .bfill{height:100%;width:0;border-radius:2px;transition:width .9s cubic-bezier(.2,.7,.3,1)}
+  .bval{font-family:var(--mono);font-size:12.5px;width:88px;text-align:right;flex:0 0 auto;font-variant-numeric:tabular-nums}
+
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-top:24px}
+  button.ctl{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--dim);background:rgba(255,255,255,.02);border:1px solid var(--hair);
+    border-radius:2px;padding:11px 18px;cursor:pointer;transition:color .18s,border-color .18s,background .18s}
+  button.ctl:hover{color:var(--ink);border-color:var(--cy-dim);background:rgba(34,211,238,.07)}
+  button.ctl:focus-visible{outline:2px solid var(--cy);outline-offset:3px}
+
+  footer{margin-top:44px;border-top:1px solid var(--hair);padding-top:22px;color:var(--faint);
+    font-size:13.5px;line-height:1.75;max-width:78ch}
+  footer strong{color:var(--ink);font-weight:500}
+  kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--hair);border-radius:2px;padding:2px 7px;color:var(--dim)}
+  .note{font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:.04em;margin-top:14px;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow"><span class="pulse"></span>Mantenimiento predictivo a equipo mayor · IoT + IA</p>
+    <h1>El costo de <em>esperar</em></h1>
+    <p class="sub">Ya sabemos que el Equipo B va a fallar. El modelo detectó la tendencia el día 62 y proyecta la falla para el día 104. Ahora la decisión es suya: <strong style="color:var(--ink);font-weight:500">¿cuándo interviene?</strong></p>
+  </header>
+
+  <section class="panel">
+    <div class="phead">
+      <p class="plabel">RTG 04 · Equipo B · rodamiento principal</p>
+      <h2 class="ptitle">Elija el día de intervención</h2>
+    </div>
+    <canvas id="cv"></canvas>
+    <div class="opts">
+      <button class="opt" type="button" data-i="0">
+        <span class="day">Día 62</span>
+        <span class="name">Intervenir de inmediato</span>
+        <span class="hint">En cuanto el modelo marca la tendencia. Máxima seguridad.</span>
+      </button>
+      <button class="opt" type="button" data-i="1">
+        <span class="day">Día 90</span>
+        <span class="name">Esperar la ventana</span>
+        <span class="hint">Aprovechar el paro programado de fin de mes.</span>
+      </button>
+      <button class="opt" type="button" data-i="2">
+        <span class="day">Día 104</span>
+        <span class="name">Correr hasta la falla</span>
+        <span class="hint">Operar el equipo hasta que se detenga solo.</span>
+      </button>
+    </div>
+
+    <div class="scn" id="scn">
+      <div class="scnin">
+        <span class="vtag" id="vtag"></span>
+        <h3 class="scnh" id="scnh"></h3>
+        <p class="scnb" id="scnb"></p>
+        <div class="mets" id="mets"></div>
+        <div class="cmp">
+          <h4>Costo total del escenario</h4>
+          <div id="bars"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="toolbar">
+    <button class="ctl" type="button" id="reset">Reiniciar dinámica</button>
+    <button class="ctl" type="button" id="showall">Comparar los tres</button>
+  </div>
+
+  <footer>
+    <p><strong>El costo mínimo no está en el extremo, está en la ventana.</strong> Intervenir demasiado pronto desperdicia vida útil del componente; esperar la falla detiene el patio. El valor del modelo no es avisar: es dar el tiempo suficiente para elegir el momento.</p>
+    <p>Controles: <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> eligen escenario · <kbd>C</kbd> compara · <kbd>H</kbd> reinicia.</p>
+    <p class="note">Cifras ilustrativas construidas sobre supuestos de operación de la terminal. Ajústelas a los costos reales antes de presentar ante jurado.</p>
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  var VMIN=1,VMAX=6.4,THRESH=4.5,DMAX=118;
+  var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function nz(d){return Math.sin(d*1.7)*0.6+Math.sin(d*0.53)*0.4;}
+  function vib(d){return 2.4+nz(d)*0.12+0.00055*Math.pow(Math.max(0,d-30),2);}
+
+  var SC=[
+    { day:62, tag:'Demasiado pronto', cls:'t-early', bar:'#7FA0B4',
+      title:'Intervención segura, pero cara en vida útil',
+      body:'El rodamiento se cambió con aproximadamente 40% de vida útil restante. La grúa nunca estuvo en riesgo, pero se pagó una refacción antes de tiempo y se ocupó una cuadrilla en un equipo que aún podía operar. Multiplicado por once equipos al año, este criterio se vuelve caro y nos regresa al mantenimiento por calendario, que es justo lo que queremos dejar atrás.',
+      mets:[
+        ['0 h','paro no planeado','n-good'],
+        ['6 h','paro programado','n-neutral'],
+        ['40%','vida útil desperdiciada','n-warn'],
+        ['$182 K','costo total','n-warn']
+      ], cost:182 },
+    { day:90, tag:'Ventana óptima', cls:'t-opt', bar:'#4ADE80',
+      title:'Mantenimiento en ventana, sin sorpresas',
+      body:'Se aprovechó el paro programado de fin de mes. La refacción se pidió con cuatro semanas de anticipación, sin flete urgente, y la cuadrilla trabajó en horario normal. El componente se cambió con menos de 10% de vida útil restante y el patio no perdió un solo movimiento no planeado. Esto es lo que el modelo hace posible: no adivinar la falla, sino tener tiempo para elegir el momento.',
+      mets:[
+        ['0 h','paro no planeado','n-good'],
+        ['6 h','paro programado','n-good'],
+        ['<10%','vida útil desperdiciada','n-good'],
+        ['$74 K','costo total','n-good']
+      ], cost:74 },
+    { day:104, tag:'Falla en operación', cls:'t-late', bar:'#EF5B5B',
+      title:'La grúa se detuvo sola, en medio del patio',
+      body:'El rodamiento falló durante el turno. La grúa quedó inmovilizada 38 horas: hubo que conseguir la refacción con flete urgente, movilizar cuadrilla en fin de semana y desviar operaciones a las grúas vecinas. El daño se extendió al eje, así que la reparación dejó de ser un cambio de rodamiento. Esto no es un costo de mantenimiento: es una interrupción de la continuidad de las operaciones de la terminal.',
+      mets:[
+        ['38 h','paro no planeado','n-bad'],
+        ['0 h','paro programado','n-neutral'],
+        ['0%','vida útil desperdiciada','n-neutral'],
+        ['$610 K','costo total','n-bad']
+      ], cost:610 }
+  ];
+
+  var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+  var sel=-1, allMode=false, W,H,L,R,T,B, anim=0;
+
+  function sx(d){return L+(d/DMAX)*(W-L-R);}
+  function sy(v){return (H-B)-((v-VMIN)/(VMAX-VMIN))*(H-B-T);}
+
+  function resize(){
+    var r=cv.getBoundingClientRect(),dpr=window.devicePixelRatio||1;
+    W=r.width;H=r.height;
+    cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    L=W<560?46:70;R=24;T=28;B=W<560?36:44;
+    draw();
+  }
+
+  function draw(){
+    var c=ctx;c.clearRect(0,0,W,H);
+    c.font='11px "JetBrains Mono", monospace';
+
+    // grid
+    c.strokeStyle='#0F2536';c.lineWidth=1;c.fillStyle='#456579';
+    [2,3,4,5,6].forEach(function(v){
+      var y=Math.round(sy(v))+0.5;
+      c.beginPath();c.moveTo(L,y);c.lineTo(W-R,y);c.stroke();
+      c.textAlign='right';c.textBaseline='middle';c.fillText(v.toFixed(1),L-12,y);
+    });
+    c.textAlign='center';c.textBaseline='top';
+    [0,30,60,90].forEach(function(d){c.fillText('día '+d,sx(d),H-B+12);});
+
+    c.strokeStyle='#1B3A4E';
+    c.beginPath();c.moveTo(L,T);c.lineTo(L,H-B);c.lineTo(W-R,H-B);c.stroke();
+
+    // umbral
+    var ty=Math.round(sy(THRESH))+0.5;
+    c.save();c.setLineDash([7,6]);c.strokeStyle='rgba(245,165,36,.55)';
+    c.beginPath();c.moveTo(L,ty);c.lineTo(W-R,ty);c.stroke();c.restore();
+    c.fillStyle='rgba(245,165,36,.8)';c.textAlign='right';c.textBaseline='bottom';
+    c.font='10px "JetBrains Mono", monospace';
+    c.fillText('UMBRAL DE ALARMA 4.5 mm/s',W-R,ty-7);
+
+    // deteccion dia 62
+    c.save();c.setLineDash([3,5]);c.strokeStyle='rgba(34,211,238,.35)';
+    c.beginPath();c.moveTo(sx(62),T);c.lineTo(sx(62),H-B);c.stroke();c.restore();
+    c.fillStyle='rgba(34,211,238,.75)';c.textAlign='left';c.textBaseline='top';
+    c.font='10px "JetBrains Mono", monospace';
+    c.fillText('MODELO DETECTA',sx(62)+7,T+2);
+
+    // area medida
+    var g=c.createLinearGradient(0,T,0,H-B);
+    g.addColorStop(0,'rgba(34,211,238,.18)');g.addColorStop(1,'rgba(34,211,238,0)');
+    c.beginPath();c.moveTo(L,H-B);
+    for(var i=0;i<=90;i+=1){c.lineTo(sx(i),sy(vib(i)));}
+    c.lineTo(sx(90),H-B);c.closePath();c.fillStyle=g;c.fill();
+
+    // curva medida
+    c.beginPath();
+    for(var k=0;k<=90;k+=0.5){var x=sx(k),y=sy(vib(k));k?c.lineTo(x,y):c.moveTo(x,y);}
+    c.strokeStyle='#22D3EE';c.lineWidth=2.6;c.lineJoin='round';c.lineCap='round';
+    c.shadowColor='rgba(34,211,238,.5)';c.shadowBlur=13;c.stroke();c.shadowBlur=0;
+
+    // proyeccion 90 -> 104
+    c.save();c.setLineDash([6,5]);
+    c.beginPath();
+    for(var j=90;j<=104;j+=0.5){var xx=sx(j),yy=sy(vib(j));j===90?c.moveTo(xx,yy):c.lineTo(xx,yy);}
+    c.strokeStyle='rgba(245,165,36,.85)';c.lineWidth=2;c.stroke();c.restore();
+
+    // punto de falla
+    var fx=sx(104),fy=sy(vib(104));
+    c.beginPath();c.arc(fx,fy,5,0,7);c.fillStyle='#EF5B5B';c.fill();
+    c.beginPath();c.arc(fx,fy,11,0,7);c.strokeStyle='rgba(239,91,91,.4)';c.lineWidth=1;c.stroke();
+    c.fillStyle='#EF5B5B';c.textAlign='right';c.textBaseline='bottom';
+    c.font='10px "JetBrains Mono", monospace';
+    c.fillText('FALLA día 104',fx-14,fy-6);
+
+    // marcadores de escenario
+    SC.forEach(function(s,i){
+      var on = allMode || sel===i;
+      var x=sx(s.day);
+      c.save();
+      c.setLineDash(on?[]:[2,6]);
+      c.strokeStyle= on ? s.bar : 'rgba(127,160,180,.28)';
+      c.lineWidth= on?2:1;
+      var top=T+(on?0:8);
+      c.beginPath();c.moveTo(x,top);c.lineTo(x,H-B);c.stroke();
+      c.restore();
+      if(on){
+        var y=sy(vib(s.day));
+        c.beginPath();c.arc(x,y,5.5,0,7);c.fillStyle=s.bar;c.fill();
+        c.beginPath();c.arc(x,y,12,0,7);c.strokeStyle=s.bar;c.globalAlpha=.35;c.lineWidth=1;c.stroke();c.globalAlpha=1;
+        c.fillStyle=s.bar;c.font='11px "JetBrains Mono", monospace';
+        c.textAlign= s.day>95?'right':'left';c.textBaseline='top';
+        c.fillText('día '+s.day, s.day>95?x-8:x+8, T+2);
+      }
+    });
+  }
+
+  function bars(active){
+    var max=610, html='';
+    SC.forEach(function(s,i){
+      var pct=(s.cost/max)*100;
+      var on = allMode || i===active;
+      html+='<div class="brow">'+
+        '<span class="blab">día '+s.day+'</span>'+
+        '<span class="btrack"><span class="bfill" data-w="'+pct+'" style="background:'+
+          (on?s.bar:'rgba(127,160,180,.22)')+'"></span></span>'+
+        '<span class="bval" style="color:'+(on?s.bar:'var(--faint)')+'">$'+s.cost+' K</span>'+
+      '</div>';
+    });
+    var host=document.getElementById('bars');
+    host.innerHTML=html;
+    requestAnimationFrame(function(){
+      Array.prototype.forEach.call(host.querySelectorAll('.bfill'),function(el){
+        el.style.width=el.getAttribute('data-w')+'%';
+      });
+    });
+  }
+
+  function pick(i){
+    sel=i;allMode=false;
+    Array.prototype.forEach.call(document.querySelectorAll('.opt'),function(b,k){
+      b.classList.toggle('sel',k===i);
+    });
+    var s=SC[i];
+    document.getElementById('vtag').className='vtag '+s.cls;
+    document.getElementById('vtag').textContent=s.tag;
+    document.getElementById('scnh').textContent=s.title;
+    document.getElementById('scnb').textContent=s.body;
+    document.getElementById('mets').innerHTML=s.mets.map(function(m){
+      return '<div class="met"><b class="'+m[2]+'">'+m[0]+'</b><span>'+m[1]+'</span></div>';
+    }).join('');
+    bars(i);
+    document.getElementById('scn').classList.add('show');
+    draw();
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('.opt'),function(b){
+    b.addEventListener('click',function(){pick(parseInt(b.getAttribute('data-i'),10));});
+  });
+
+  document.getElementById('reset').onclick=function(){
+    sel=-1;allMode=false;
+    Array.prototype.forEach.call(document.querySelectorAll('.opt'),function(b){b.classList.remove('sel');});
+    document.getElementById('scn').classList.remove('show');
+    draw();
+  };
+  document.getElementById('showall').onclick=function(){
+    allMode=true;
+    document.getElementById('vtag').className='vtag t-opt';
+    document.getElementById('vtag').textContent='Los tres escenarios';
+    document.getElementById('scnh').textContent='La ventana cuesta ocho veces menos que la falla';
+    document.getElementById('scnb').textContent='Intervenir el día 62 es seguro pero desperdicia vida útil del componente. Correr hasta la falla multiplica el costo por más de ocho y detiene el patio 38 horas. El punto óptimo está en medio, y solo se puede elegir si alguien avisó con tiempo. Ese aviso es el proyecto.';
+    document.getElementById('mets').innerHTML=
+      '<div class="met"><b class="n-good">$74 K</b><span>mejor escenario</span></div>'+
+      '<div class="met"><b class="n-bad">$610 K</b><span>peor escenario</span></div>'+
+      '<div class="met"><b class="n-warn">$536 K</b><span>diferencia</span></div>'+
+      '<div class="met"><b class="n-good">8.2×</b><span>factor de costo</span></div>';
+    bars(-1);
+    document.getElementById('scn').classList.add('show');
+    draw();
+  };
+
+  document.addEventListener('keydown',function(e){
+    var k=e.key.toLowerCase();
+    if(k==='1')pick(0); else if(k==='2')pick(1); else if(k==='3')pick(2);
+    else if(k==='c')document.getElementById('showall').click();
+    else if(k==='h')document.getElementById('reset').click();
+  });
+
+  var rt;window.addEventListener('resize',function(){clearTimeout(rt);rt=setTimeout(resize,140);});
+  resize();
+})();
+</script>
+</body>
+</html>
